@@ -121,5 +121,5 @@ mission.json
 }
 ```
 
-![example image1](image/way1.png)  
-![example image1](image/way2.png)  
+![example image1](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way1.PNG)  
+![example image2](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way2.PNG)  
