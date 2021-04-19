@@ -1,4 +1,4 @@
-# ロボットのミッションファイル作る用のGUI
+# ロボットのミッションファイル作る用のGUIツール
 
 ## 機能  
 
@@ -6,9 +6,11 @@
 ウェイポイント上で右クリックでその点を削除  
 undo, repeat, clear機能  
 座標指定でのウェイポイント追加  
-jsonファイルでwaypointを出力
+jsonファイルでwaypointを出力  
+![example image1](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way1.PNG)  
+![example image2](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way2.PNG)  
 
-## exp  
+## example  
 
 mission.json  
 
@@ -119,7 +121,4 @@ mission.json
     }
   ]
 }
-```
-
-![example image1](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way1.PNG)  
-![example image2](https://raw.githubusercontent.com/satoshi-teji/mission_generator/master/image/way2.PNG)  
+```  
