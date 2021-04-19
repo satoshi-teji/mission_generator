@@ -108,8 +108,7 @@ class MissionGenerator:
     def onclick(self, event):
         try:
             x, y, z = np.round(event.xdata), np.round(event.ydata), float(self.z.get())
-        except ValueError:
-            print("Z value is invalid")
+        except (ValueError, TypeError):
             return
         if (x == None) or (y == None):
             return
