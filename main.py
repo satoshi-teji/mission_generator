@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import numpy as np
@@ -145,7 +146,7 @@ class MissionGenerator:
                             '', xy=end, xytext=start,
                             arrowprops=dict(shrink=0, width=1, headwidth=8, 
                             headlength=10, connectionstyle='arc3',
-                            facecolor='black', edgecolor='gray')
+                            facecolor='black', edgecolor='black')
                         )
         self.canvas.draw_idle()
 
@@ -164,7 +165,6 @@ class MissionGenerator:
             i["text"] = ""
 
     
-    # waypointを削除した時の処理
     def redraw(self):
         self.ax.cla()
         self.ax.set_ylim(int(self.x_min.get()), int(self.x_max.get()))
@@ -209,6 +209,7 @@ class MissionGenerator:
         self.clear_lbls()
         self.canvas.draw_idle()
         self._xyz = np.empty((0, 3), int)
+        messagebox.showinfo("Clear info", "Done!")
     
 
     def repeat(self, *args):
@@ -222,7 +223,11 @@ class MissionGenerator:
                         y, x, z = diffs + self._xyz[-1, :]
                         self._xyz = np.append(self._xyz, np.array([[y, x, float(z)]]), axis=0)
                 self.redraw()
+                messagebox.showinfo("Repeat info", "Done!")
+            else:
+                messagebox.showerror("Error!", "No waypoints are selected")
         except ValueError:
+            messagebox.showerror("Error!", "ValueError: repeat num is invalid")
             return
 
 
@@ -246,6 +251,7 @@ class MissionGenerator:
     def to_json(self, *args):
         data = defaultdict(list)
         if not self._xyz.shape[0]:
+            messagebox.showerror("Error!", "No waypoints are selected")
             return
         for i, xyz in enumerate(self._xyz):
             x, y, z = xyz
@@ -253,6 +259,7 @@ class MissionGenerator:
             data["waypoints"].append(d)
         with open('./mission.json', mode='wt', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
+        messagebox.showinfo("Save info", "Done!")
 
 
     def _destroyWindow(self):
