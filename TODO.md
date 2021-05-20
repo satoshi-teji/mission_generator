@@ -35,3 +35,9 @@ jsonファイルの可視化の実装(Python標準実装の tkinter)
 
 ## json形式
 
+- 必要な情報  
+  position x, y  
+  yaw角  
+  margin  
+  duration  
+  timeout  
