@@ -9,10 +9,12 @@ import json
 from collections import defaultdict, deque
 import signal
 
+from rospy.rostime import Duration
+
 
 class MissionGenerator:
     def __init__(self, root):
-        self._xyyaw = np.empty((0, 3), int)
+        self._datalist = np.empty((0, 6), int)
         self.rowspan = 42
         self.columnspan = 20
         self.root = root
@@ -104,9 +106,9 @@ class MissionGenerator:
         self.y = StringVar()
         self.y.set("y")
         y_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y).grid(column=2, row=45, sticky="W")
-        self._z = StringVar()
-        self._z.set("yaw")
-        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._z).grid(column=3, row=45, sticky="W")
+        self._yaw = StringVar()
+        self._yaw.set("yaw")
+        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._yaw).grid(column=3, row=45, sticky="W")
         ttk.Button(self.mainframe, text="add waypoint", command=self.add_waypoint).grid(column=4, row=45, sticky="W")
 
         # グラフの準備
@@ -133,7 +135,14 @@ class MissionGenerator:
 
     def onclick(self, event):
         try:
-            x, y, yaw = np.round(event.xdata), np.round(event.ydata), float(self.yaw.get())
+            x, y, yaw, margin, duration, timeout = (
+                np.round(event.xdata),
+                np.round(event.ydata),
+                float(self.yaw.get()),
+                float(self.margin.get()),
+                float(self.duration.get()),
+                float(self.timeout.get()),
+            )
         except (ValueError, TypeError):
             return
         if (x == None) or (y == None):
@@ -141,28 +150,28 @@ class MissionGenerator:
         button = int(event.button)
         if button == 1:  # Left click: add waypoint
             try:
-                y_, x_, z_ = self._xyyaw[-1, :]
-                if (x == x_) and (y_ == y) and (z_ == float(yaw)):
+                y_, x_, yaw_, _, _, _ = self._datalist[-1, :]
+                if (x == x_) and (y == y_) and (yaw_ == float(yaw)):
                     return
             except IndexError:
                 pass
-            self._xyyaw = np.append(self._xyyaw, np.array([[y, x, float(yaw)]]), axis=0)
-            self.ax.plot(self._xyyaw[:, 1], self._xyyaw[:, 0], ".", color="red")
-            self.draw_arrows(self._xyyaw.shape[0] - 1)
+            self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
+            self.ax.plot(self._datalist[:, 1], self._datalist[:, 0], ".", color="red")
+            self.draw_arrows(self._datalist.shape[0] - 1)
         elif button == 3:  # Right click: remove waypoint
-            diff = self._xyyaw - np.array([y, x, float(yaw)]).T
+            diff = self._datalist - np.array([y, x, yaw, margin, duration, timeout]).T
             diff = np.linalg.norm(diff, axis=1)
             if diff.min() <= 2:
                 index = diff.argmin()
-                self._xyyaw = np.delete(self._xyyaw, index, axis=0)
+                self._datalist = np.delete(self._datalist, index, axis=0)
             else:
                 return
             self.redraw()
 
     # waypointにどの順番で向かうかを可視化する
     def draw_arrows(self, n):
-        start = self._xyyaw[n - 1, :]
-        end = self._xyyaw[n, :]
+        start = self._datalist[n - 1, :]
+        end = self._datalist[n, :]
         start = np.array([start[1], start[0]])
         end = np.array([end[1], end[0]])
         self.ax.annotate(
@@ -188,8 +197,8 @@ class MissionGenerator:
         self.ax.set_xlabel("Y[m]")
         self.ax.set_ylabel("X[m]")
         self.ax.grid(True)
-        self.ax.plot(self._xyyaw[:, 1], self._xyyaw[:, 0], ".", color="red")
-        for i in range(1, self._xyyaw.shape[0]):
+        self.ax.plot(self._datalist[:, 1], self._datalist[:, 0], ".", color="red")
+        for i in range(1, self._datalist.shape[0]):
             self.draw_arrows(i)
         self.canvas.draw_idle()
 
@@ -227,19 +236,25 @@ class MissionGenerator:
         self.ax.set_ylabel("X[m]")
         self.ax.grid(True)
         self.canvas.draw_idle()
-        self._xyyaw = np.empty((0, 3), int)
+        self._datalist = np.empty((0, 6), int)
         messagebox.showinfo("Clear info", "Done!")
 
     def repeat(self, *args):
         try:
+            margin, duration, timeout = (
+                float(self.margin.get()),
+                float(self.duration.get()),
+                float(self.timeout.get()),
+            )
             n = int(self.n_repeat.get())
-            xyzs = self._xyyaw
-            if self._xyyaw.shape[0]:
+            data = self._datalist
+            if self._datalist.shape[0]:
                 for _ in range(n):
-                    for i in range(1, xyzs.shape[0]):
-                        diffs = xyzs[i, :] - xyzs[i - 1, :]
-                        y, x, yaw = diffs + self._xyyaw[-1, :]
-                        self._xyyaw = np.append(self._xyyaw, np.array([[y, x, float(yaw)]]), axis=0)
+                    for i in range(1, data.shape[0]):
+                        diffs = data[i, :] - data[i - 1, :]
+                        yaw = data[i, 2]
+                        y, x, _, _, _, _ = diffs + self._datalist[-1, :]
+                        self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
                 self.redraw()
                 messagebox.showinfo("Repeat info", "Done!")
             else:
@@ -250,27 +265,34 @@ class MissionGenerator:
 
     def undo(self, *args):
         try:
-            self._xyyaw = np.delete(self._xyyaw, -1, axis=0)
+            self._datalist = np.delete(self._datalist, -1, axis=0)
             self.redraw()
         except IndexError:
             pass
 
     def add_waypoint(self, *args):
         try:
-            x, y, yaw = float(self.x.get()), float(self.y.get()), float(self._z.get())
-            self._xyyaw = np.append(self._xyyaw, np.array([[x, y, float(yaw)]]), axis=0)
+            x, y, yaw, margin, duration, timeout = (
+                float(self.x.get()),
+                float(self.y.get()),
+                float(self._yaw.get()),
+                float(self.margin.get()),
+                float(self.duration.get()),
+                float(self.timeout.get()),
+            )
+            self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
             self.redraw()
         except ValueError:
             pass
 
     def to_json(self, *args):
         data = defaultdict(list)
-        if not self._xyyaw.shape[0]:
+        if not self._datalist.shape[0]:
             messagebox.showerror("Error!", "No waypoints are selected")
             return
-        for i, xyz in enumerate(self._xyyaw):
-            x, y, yaw = xyz
-            d = {"ID": i, "X": x, "Y": y, "Z": yaw}
+        for i, xyymdt in enumerate(self._datalist):
+            x, y, yaw, margin, duration, timeout = xyymdt
+            d = {"ID": i, "X": x, "Y": y, "Yaw": yaw, "Margin": margin, "Duration": duration, "Timeout": timeout}
             data["waypoints"].append(d)
         with open("./mission.json", mode="wt", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
@@ -278,17 +300,17 @@ class MissionGenerator:
 
     def wpl_viewer(self, *args):
         newWindow = Toplevel(self.root)
-        message = ScrolledText(newWindow, width=30, height=30)
+        message = ScrolledText(newWindow, width=90, height=30)
         message.pack()
-        if self._xyyaw.size > 0:
-            for i, xyy in enumerate(self._xyyaw):
-                m = "{0}: x:{1} y:{2} yaw:{3}\n".format(i + 1, *xyy)
+        if self._datalist.size > 0:
+            for i, xyy in enumerate(self._datalist):
+                m = "{0}: x:{1} y:{2} yaw:{3} margin:{4} duration:{5} timeout:{6}\n".format(i + 1, *xyy)
                 message.insert(float(i + 1), m)
         else:
             message.insert(1.0, "No waypoints")
         message.configure(state="disabled")
         newWindow.title("Waypoints List")
-        newWindow.geometry("300x300")
+        newWindow.geometry("800x300")
         newWindow.grab_set()
         self.root.wait_window(newWindow)
         newWindow.destroy()
