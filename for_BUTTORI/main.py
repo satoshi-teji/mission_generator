@@ -1,17 +1,18 @@
 from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
+from tkinter.scrolledtext import ScrolledText
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import numpy as np
 import json
-from collections import defaultdict
+from collections import defaultdict, deque
 import signal
 
 
 class MissionGenerator:
     def __init__(self, root):
-        self._xyz = np.empty((0, 3), int)
+        self._xyyaw = np.empty((0, 3), int)
         self.rowspan = 42
         self.columnspan = 20
         self.root = root
@@ -20,23 +21,21 @@ class MissionGenerator:
         style.configure("BW.TLabel", foreground="black", background="white")
 
         self.root.title("Mission Generator")
-
         self.mainframe = ttk.Frame(self.root, padding="3 3 12 12")
         self.mainframe.grid(column=0, row=0, sticky=(N, W, S, E))
-        self.content = ttk.Frame(self.mainframe, borderwidth=5, relief="ridge")
+        self.content = Canvas(self.mainframe, borderwidth=5, relief="ridge")
         self.content.grid(column=0, row=0, columnspan=self.columnspan, rowspan=self.rowspan)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
-        # Zに関する表示処理
-        ttk.Label(self.mainframe, text="Z: ").grid(column=self.columnspan + 1, row=0, sticky="E")
-        self.z = StringVar()
-        self.z.set("15")
-        z_entry = ttk.Entry(self.mainframe, width=3, textvariable=self.z).grid(column=self.columnspan + 2, row=0, sticky="W")
+        # Yawに関する表示処理
+        ttk.Label(self.mainframe, text="Yaw(deg 0->North): ").grid(column=self.columnspan + 1, row=0, sticky="E")
+        self.yaw = StringVar()
+        self.yaw.set("0")
+        yaw_entry = ttk.Entry(self.mainframe, width=3, textvariable=self.yaw).grid(column=self.columnspan + 2, row=0, sticky="W")
 
-        # (x, y, z)に関する表示処理
-        self.xyz_lbls = []
-        ttk.Label(self.mainframe, text="(x, y, z)").grid(column=self.columnspan + 1, row=1, sticky="E")
+        # (x, y, yaw)に関する表示処理
+        ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(column=self.columnspan + 1, row=1, sticky="E")
 
         # xlimの設定
         ttk.Label(self.mainframe, text="x range:").grid(column=0, row=43, sticky="E")
@@ -76,7 +75,7 @@ class MissionGenerator:
         ttk.Button(self.mainframe, text="undo", command=self.undo).grid(column=self.columnspan - 5, row=44, sticky="W")
 
         # add
-        ttk.Label(self.mainframe, text="x y z:").grid(column=0, row=45, sticky="E")
+        ttk.Label(self.mainframe, text="x y yaw:").grid(column=0, row=45, sticky="E")
         self.x = StringVar()
         self.x.set("x")
         x_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x).grid(column=1, row=45, sticky="W")
@@ -84,8 +83,8 @@ class MissionGenerator:
         self.y.set("y")
         y_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y).grid(column=2, row=45, sticky="W")
         self._z = StringVar()
-        self._z.set("z")
-        z_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._z).grid(column=3, row=45, sticky="W")
+        self._z.set("yaw")
+        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._z).grid(column=3, row=45, sticky="W")
         ttk.Button(self.mainframe, text="add waypoint", command=self.add_waypoint).grid(column=4, row=45, sticky="W")
 
         # グラフの準備
@@ -112,7 +111,7 @@ class MissionGenerator:
 
     def onclick(self, event):
         try:
-            x, y, z = np.round(event.xdata), np.round(event.ydata), float(self.z.get())
+            x, y, yaw = np.round(event.xdata), np.round(event.ydata), float(self.yaw.get())
         except (ValueError, TypeError):
             return
         if (x == None) or (y == None):
@@ -120,29 +119,28 @@ class MissionGenerator:
         button = int(event.button)
         if button == 1:  # Left click: add waypoint
             try:
-                y_, x_, z_ = self._xyz[-1, :]
-                if (x == x_) and (y_ == y) and (z_ == float(z)):
+                y_, x_, z_ = self._xyyaw[-1, :]
+                if (x == x_) and (y_ == y) and (z_ == float(yaw)):
                     return
             except IndexError:
                 pass
-            self._xyz = np.append(self._xyz, np.array([[y, x, float(z)]]), axis=0)
-            self.ax.plot(self._xyz[:, 1], self._xyz[:, 0], ".", color="red")
-            self.draw_arrows(self._xyz.shape[0] - 1)
-            self.draw_xy_list(self._xyz.shape[0])
+            self._xyyaw = np.append(self._xyyaw, np.array([[y, x, float(yaw)]]), axis=0)
+            self.ax.plot(self._xyyaw[:, 1], self._xyyaw[:, 0], ".", color="red")
+            self.draw_arrows(self._xyyaw.shape[0] - 1)
         elif button == 3:  # Right click: remove waypoint
-            diff = self._xyz - np.array([y, x, float(z)]).T
+            diff = self._xyyaw - np.array([y, x, float(yaw)]).T
             diff = np.linalg.norm(diff, axis=1)
             if diff.min() <= 2:
                 index = diff.argmin()
-                self._xyz = np.delete(self._xyz, index, axis=0)
+                self._xyyaw = np.delete(self._xyyaw, index, axis=0)
             else:
                 return
             self.redraw()
 
     # waypointにどの順番で向かうかを可視化する
     def draw_arrows(self, n):
-        start = self._xyz[n - 1, :]
-        end = self._xyz[n, :]
+        start = self._xyyaw[n - 1, :]
+        end = self._xyyaw[n, :]
         start = np.array([start[1], start[0]])
         end = np.array([end[1], end[0]])
         self.ax.annotate(
@@ -161,17 +159,6 @@ class MissionGenerator:
         )
         self.canvas.draw_idle()
 
-    # waypointを文字ベースでも可視化する
-    def draw_xy_list(self, n):
-        x, y, z = self._xyz[n - 1, :]
-        lbl = ttk.Label(self.mainframe, text="{}:{}, {}, {}".format(n, x, y, z))
-        lbl.grid(column=self.columnspan + 2, row=n, sticky="W")
-        self.xyz_lbls.append(lbl)
-
-    def clear_lbls(self):
-        for i in self.xyz_lbls:
-            i["text"] = ""
-
     def redraw(self):
         self.ax.cla()
         self.ax.set_ylim(int(self.x_min.get()), int(self.x_max.get()))
@@ -179,12 +166,9 @@ class MissionGenerator:
         self.ax.set_xlabel("Y[m]")
         self.ax.set_ylabel("X[m]")
         self.ax.grid(True)
-        self.ax.plot(self._xyz[:, 1], self._xyz[:, 0], ".", color="red")
-        self.clear_lbls()
-        for i in range(1, self._xyz.shape[0]):
+        self.ax.plot(self._xyyaw[:, 1], self._xyyaw[:, 0], ".", color="red")
+        for i in range(1, self._xyyaw.shape[0]):
             self.draw_arrows(i)
-        for i in range(1, self._xyz.shape[0] + 1):
-            self.draw_xy_list(i)
         self.canvas.draw_idle()
 
     def update_lims(self, *args):
@@ -220,21 +204,20 @@ class MissionGenerator:
         self.ax.set_xlabel("Y[m]")
         self.ax.set_ylabel("X[m]")
         self.ax.grid(True)
-        self.clear_lbls()
         self.canvas.draw_idle()
-        self._xyz = np.empty((0, 3), int)
+        self._xyyaw = np.empty((0, 3), int)
         messagebox.showinfo("Clear info", "Done!")
 
     def repeat(self, *args):
         try:
             n = int(self.n_repeat.get())
-            xyzs = self._xyz
-            if self._xyz.shape[0]:
+            xyzs = self._xyyaw
+            if self._xyyaw.shape[0]:
                 for _ in range(n):
                     for i in range(1, xyzs.shape[0]):
                         diffs = xyzs[i, :] - xyzs[i - 1, :]
-                        y, x, z = diffs + self._xyz[-1, :]
-                        self._xyz = np.append(self._xyz, np.array([[y, x, float(z)]]), axis=0)
+                        y, x, yaw = diffs + self._xyyaw[-1, :]
+                        self._xyyaw = np.append(self._xyyaw, np.array([[y, x, float(yaw)]]), axis=0)
                 self.redraw()
                 messagebox.showinfo("Repeat info", "Done!")
             else:
@@ -245,31 +228,44 @@ class MissionGenerator:
 
     def undo(self, *args):
         try:
-            self._xyz = np.delete(self._xyz, -1, axis=0)
+            self._xyyaw = np.delete(self._xyyaw, -1, axis=0)
             self.redraw()
         except IndexError:
             pass
 
     def add_waypoint(self, *args):
         try:
-            x, y, z = float(self.x.get()), float(self.y.get()), float(self._z.get())
-            self._xyz = np.append(self._xyz, np.array([[x, y, float(z)]]), axis=0)
+            x, y, yaw = float(self.x.get()), float(self.y.get()), float(self._z.get())
+            self._xyyaw = np.append(self._xyyaw, np.array([[x, y, float(yaw)]]), axis=0)
             self.redraw()
         except ValueError:
             pass
 
     def to_json(self, *args):
         data = defaultdict(list)
-        if not self._xyz.shape[0]:
+        if not self._xyyaw.shape[0]:
             messagebox.showerror("Error!", "No waypoints are selected")
             return
-        for i, xyz in enumerate(self._xyz):
-            x, y, z = xyz
-            d = {"ID": i, "X": x, "Y": y, "Z": z}
+        for i, xyz in enumerate(self._xyyaw):
+            x, y, yaw = xyz
+            d = {"ID": i, "X": x, "Y": y, "Z": yaw}
             data["waypoints"].append(d)
         with open("./mission.json", mode="wt", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
         messagebox.showinfo("Save info", "Done!")
+
+    def wpl_viewer(self, *args):
+        newWindow = Toplevel(self.root)
+        message = ScrolledText(newWindow, width=30, height=30)
+        message.pack()
+        for i, xyy in enumerate(self._xyyaw):
+            m = "{0}: x:{1} y:{2} yaw:{3}\n".format(i + 1, *xyy)
+            message.insert(float(i + 1), m)
+        message.configure(state="disabled")
+        newWindow.title("Waypoints List")
+        newWindow.geometry("300x300")
+        newWindow.grab_set()
+        self.root.wait_window(newWindow)
 
     def _destroyWindow(self):
         self.root.quit()
