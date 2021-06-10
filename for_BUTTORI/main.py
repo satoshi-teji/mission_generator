@@ -29,13 +29,35 @@ class MissionGenerator:
         self.root.rowconfigure(0, weight=1)
 
         # Yawに関する表示処理
-        ttk.Label(self.mainframe, text="Yaw(deg 0->North): ").grid(column=self.columnspan + 1, row=0, sticky="E")
+        ttk.Label(self.mainframe, text="Yaw(0->N 90->E...): ").grid(column=self.columnspan + 1, row=0, sticky="E")
+        ttk.Label(self.mainframe, text="deg").grid(column=self.columnspan + 3, row=0, sticky="E")
         self.yaw = StringVar()
         self.yaw.set("0")
-        yaw_entry = ttk.Entry(self.mainframe, width=3, textvariable=self.yaw).grid(column=self.columnspan + 2, row=0, sticky="W")
+        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.yaw).grid(column=self.columnspan + 2, row=0, sticky="W")
+
+        # margin に関する表示処理
+        ttk.Label(self.mainframe, text="margin: ").grid(column=self.columnspan + 1, row=1, sticky="E")
+        ttk.Label(self.mainframe, text="m").grid(column=self.columnspan + 3, row=1, sticky="E")
+        self.margin = StringVar()
+        self.margin.set("2.0")
+        margin_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.margin).grid(column=self.columnspan + 2, row=1, sticky="W")
+
+        # duration に関する表示処理
+        ttk.Label(self.mainframe, text="duration: ").grid(column=self.columnspan + 1, row=2, sticky="E")
+        ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=2, sticky="E")
+        self.duration = StringVar()
+        self.duration.set("216000")
+        duration_entry = ttk.Entry(self.mainframe, width=10, textvariable=self.duration).grid(column=self.columnspan + 2, row=2, sticky="W")
+
+        # timeout に関する表示処理
+        ttk.Label(self.mainframe, text="timeout: ").grid(column=self.columnspan + 1, row=3, sticky="E")
+        ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=3, sticky="E")
+        self.timeout = StringVar()
+        self.timeout.set("216000")
+        timeout_entry = ttk.Entry(self.mainframe, width=10, textvariable=self.timeout).grid(column=self.columnspan + 2, row=3, sticky="W")
 
         # (x, y, yaw)に関する表示処理
-        ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(column=self.columnspan + 1, row=1, sticky="E")
+        ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(column=self.columnspan + 1, row=4, sticky="E")
 
         # xlimの設定
         ttk.Label(self.mainframe, text="x range:").grid(column=0, row=43, sticky="E")
@@ -258,7 +280,7 @@ class MissionGenerator:
         newWindow = Toplevel(self.root)
         message = ScrolledText(newWindow, width=30, height=30)
         message.pack()
-        if self._xyyaw:
+        if self._xyyaw.size > 0:
             for i, xyy in enumerate(self._xyyaw):
                 m = "{0}: x:{1} y:{2} yaw:{3}\n".format(i + 1, *xyy)
                 message.insert(float(i + 1), m)
