@@ -258,14 +258,18 @@ class MissionGenerator:
         newWindow = Toplevel(self.root)
         message = ScrolledText(newWindow, width=30, height=30)
         message.pack()
-        for i, xyy in enumerate(self._xyyaw):
-            m = "{0}: x:{1} y:{2} yaw:{3}\n".format(i + 1, *xyy)
-            message.insert(float(i + 1), m)
+        if self._xyyaw:
+            for i, xyy in enumerate(self._xyyaw):
+                m = "{0}: x:{1} y:{2} yaw:{3}\n".format(i + 1, *xyy)
+                message.insert(float(i + 1), m)
+        else:
+            message.insert(1.0, "No waypoints")
         message.configure(state="disabled")
         newWindow.title("Waypoints List")
         newWindow.geometry("300x300")
         newWindow.grab_set()
         self.root.wait_window(newWindow)
+        newWindow.destroy()
 
     def _destroyWindow(self):
         self.root.quit()
