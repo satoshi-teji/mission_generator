@@ -48,15 +48,15 @@ class MissionGenerator:
         ttk.Label(self.mainframe, text="duration: ").grid(column=self.columnspan + 1, row=2, sticky="E")
         ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=2, sticky="E")
         self.duration = StringVar()
-        self.duration.set("216000")
-        duration_entry = ttk.Entry(self.mainframe, width=10, textvariable=self.duration).grid(column=self.columnspan + 2, row=2, sticky="W")
+        self.duration.set("3600")
+        duration_entry = ttk.Entry(self.mainframe, width=8, textvariable=self.duration).grid(column=self.columnspan + 2, row=2, sticky="W")
 
         # timeout に関する表示処理
         ttk.Label(self.mainframe, text="timeout: ").grid(column=self.columnspan + 1, row=3, sticky="E")
         ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=3, sticky="E")
         self.timeout = StringVar()
-        self.timeout.set("216000")
-        timeout_entry = ttk.Entry(self.mainframe, width=10, textvariable=self.timeout).grid(column=self.columnspan + 2, row=3, sticky="W")
+        self.timeout.set("3600")
+        timeout_entry = ttk.Entry(self.mainframe, width=8, textvariable=self.timeout).grid(column=self.columnspan + 2, row=3, sticky="W")
 
         # (x, y, yaw)に関する表示処理
         ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(column=self.columnspan + 1, row=4, sticky="E")
@@ -91,6 +91,12 @@ class MissionGenerator:
 
         # save
         ttk.Button(self.mainframe, text="save", command=self.to_json).grid(column=self.columnspan - 1, row=43, sticky="W")
+
+        # automatically change the x, y range
+        self.bln = BooleanVar()
+        self.bln.set(False)
+        Checkbutton(self.mainframe, variable=self.bln).grid(column=self.columnspan, row=43, sticky="W")
+        ttk.Label(self.mainframe, text="automatically change xy range").grid(column=self.columnspan + 1, row=43, sticky="E")
 
         # clear
         ttk.Button(self.mainframe, text="clear", command=self.clear).grid(column=self.columnspan - 1, row=44, sticky="W")
@@ -159,12 +165,17 @@ class MissionGenerator:
             self.ax.plot(self._datalist[:, 1], self._datalist[:, 0], ".", color="red")
             self.draw_arrows(self._datalist.shape[0] - 1)
         elif button == 3:  # Right click: remove waypoint
-            diff = self._datalist - np.array([y, x, yaw, margin, duration, timeout]).T
-            diff = np.linalg.norm(diff, axis=1)
-            if diff.min() <= 2:
-                index = diff.argmin()
-                self._datalist = np.delete(self._datalist, index, axis=0)
-            else:
+            try:
+                # クリックした位置から2m以内にWaypointが存在すれば削除する
+                # 複数存在する場合は一番近い点を削除
+                diff = self._datalist - np.array([y, x, yaw, margin, duration, timeout]).T
+                diff = np.linalg.norm(diff, axis=1)
+                if diff.min() <= 2:
+                    index = diff.argmin()
+                    self._datalist = np.delete(self._datalist, index, axis=0)
+                else:
+                    return
+            except ValueError:
                 return
             self.redraw()
 
