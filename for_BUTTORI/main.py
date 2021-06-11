@@ -1,4 +1,5 @@
 from tkinter import *
+from tkinter import filedialog
 from tkinter import ttk
 from tkinter import messagebox
 from tkinter.scrolledtext import ScrolledText
@@ -8,8 +9,7 @@ import numpy as np
 import json
 from collections import defaultdict, deque
 import signal
-
-from rospy.rostime import Duration
+import os
 
 
 class MissionGenerator:
@@ -26,96 +26,159 @@ class MissionGenerator:
         self.mainframe = ttk.Frame(self.root, padding="3 3 12 12")
         self.mainframe.grid(column=0, row=0, sticky=(N, W, S, E))
         self.content = Canvas(self.mainframe, borderwidth=5, relief="ridge")
-        self.content.grid(column=0, row=0, columnspan=self.columnspan, rowspan=self.rowspan)
+        self.content.grid(
+            column=0, row=0, columnspan=self.columnspan, rowspan=self.rowspan
+        )
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
         # Yawに関する表示処理
-        ttk.Label(self.mainframe, text="Yaw(0->N 90->E...): ").grid(column=self.columnspan + 1, row=0, sticky="E")
-        ttk.Label(self.mainframe, text="deg").grid(column=self.columnspan + 3, row=0, sticky="E")
+        ttk.Label(self.mainframe, text="Yaw(0->N 90->E...): ").grid(
+            column=self.columnspan + 1, row=0, sticky="E"
+        )
+        ttk.Label(self.mainframe, text="deg").grid(
+            column=self.columnspan + 3, row=0, sticky="E"
+        )
         self.yaw = StringVar()
         self.yaw.set("0")
-        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.yaw).grid(column=self.columnspan + 2, row=0, sticky="W")
+        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.yaw).grid(
+            column=self.columnspan + 2, row=0, sticky="W"
+        )
 
         # margin に関する表示処理
-        ttk.Label(self.mainframe, text="margin: ").grid(column=self.columnspan + 1, row=1, sticky="E")
-        ttk.Label(self.mainframe, text="m").grid(column=self.columnspan + 3, row=1, sticky="E")
+        ttk.Label(self.mainframe, text="margin: ").grid(
+            column=self.columnspan + 1, row=1, sticky="E"
+        )
+        ttk.Label(self.mainframe, text="m").grid(
+            column=self.columnspan + 3, row=1, sticky="E"
+        )
         self.margin = StringVar()
         self.margin.set("2.0")
-        margin_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.margin).grid(column=self.columnspan + 2, row=1, sticky="W")
+        margin_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.margin).grid(
+            column=self.columnspan + 2, row=1, sticky="W"
+        )
 
         # duration に関する表示処理
-        ttk.Label(self.mainframe, text="duration: ").grid(column=self.columnspan + 1, row=2, sticky="E")
-        ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=2, sticky="E")
+        ttk.Label(self.mainframe, text="duration: ").grid(
+            column=self.columnspan + 1, row=2, sticky="E"
+        )
+        ttk.Label(self.mainframe, text="sec").grid(
+            column=self.columnspan + 3, row=2, sticky="E"
+        )
         self.duration = StringVar()
         self.duration.set("3600")
-        duration_entry = ttk.Entry(self.mainframe, width=8, textvariable=self.duration).grid(column=self.columnspan + 2, row=2, sticky="W")
+        duration_entry = ttk.Entry(
+            self.mainframe, width=8, textvariable=self.duration
+        ).grid(column=self.columnspan + 2, row=2, sticky="W")
 
         # timeout に関する表示処理
-        ttk.Label(self.mainframe, text="timeout: ").grid(column=self.columnspan + 1, row=3, sticky="E")
-        ttk.Label(self.mainframe, text="sec").grid(column=self.columnspan + 3, row=3, sticky="E")
+        ttk.Label(self.mainframe, text="timeout: ").grid(
+            column=self.columnspan + 1, row=3, sticky="E"
+        )
+        ttk.Label(self.mainframe, text="sec").grid(
+            column=self.columnspan + 3, row=3, sticky="E"
+        )
         self.timeout = StringVar()
         self.timeout.set("3600")
-        timeout_entry = ttk.Entry(self.mainframe, width=8, textvariable=self.timeout).grid(column=self.columnspan + 2, row=3, sticky="W")
+        timeout_entry = ttk.Entry(
+            self.mainframe, width=8, textvariable=self.timeout
+        ).grid(column=self.columnspan + 2, row=3, sticky="W")
 
-        # (x, y, yaw)に関する表示処理
-        ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(column=self.columnspan + 1, row=4, sticky="E")
+        # Waypoints Listに関する表示処理
+        ttk.Button(self.mainframe, text="Waypoints List", command=self.wpl_viewer).grid(
+            column=self.columnspan + 1, row=4, sticky="E"
+        )
 
         # xlimの設定
         ttk.Label(self.mainframe, text="x range:").grid(column=0, row=43, sticky="E")
         self.x_min = StringVar()
         self.x_min.set("-50")
-        x_min_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x_min).grid(column=1, row=43, sticky="W")
+        x_min_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x_min).grid(
+            column=1, row=43, sticky="W"
+        )
         ttk.Label(self.mainframe, text="< x <").grid(column=2, row=43, sticky="W")
         self.x_max = StringVar()
         self.x_max.set("50")
-        x_max_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x_max).grid(column=3, row=43, sticky="W")
+        x_max_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x_max).grid(
+            column=3, row=43, sticky="W"
+        )
         self.xlim = [-50, 50]
 
         # ylimの設定
         ttk.Label(self.mainframe, text="y range:").grid(column=0, row=44, sticky="E")
         self.y_min = StringVar()
         self.y_min.set("-50")
-        y_min_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y_min).grid(column=1, row=44, sticky="W")
+        y_min_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y_min).grid(
+            column=1, row=44, sticky="W"
+        )
         ttk.Label(self.mainframe, text="< y <").grid(column=2, row=44, sticky="W")
         self.y_max = StringVar()
         self.y_max.set("50")
-        y_max_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y_max).grid(column=3, row=44, sticky="W")
+        y_max_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y_max).grid(
+            column=3, row=44, sticky="W"
+        )
         self.ylim = [-50, 50]
 
         # repeat
         self.n_repeat = StringVar()
         self.n_repeat.set("1")
-        n_repeat_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.n_repeat).grid(column=self.columnspan - 6, row=43, sticky="W")
-        ttk.Button(self.mainframe, text="repeat", command=self.repeat).grid(column=self.columnspan - 5, row=43, sticky="W")
+        n_repeat_entry = ttk.Entry(
+            self.mainframe, width=5, textvariable=self.n_repeat
+        ).grid(column=self.columnspan - 6, row=43, sticky="W")
+        ttk.Button(self.mainframe, text="repeat", command=self.repeat).grid(
+            column=self.columnspan - 5, row=43, sticky="W"
+        )
 
         # save
-        ttk.Button(self.mainframe, text="save", command=self.to_json).grid(column=self.columnspan - 1, row=43, sticky="W")
+        ttk.Button(self.mainframe, text="save", command=self.to_json).grid(
+            column=self.columnspan - 1, row=43, sticky="W"
+        )
+
+        # load json
+        ttk.Button(self.mainframe, text="load json", command=self.from_json).grid(
+            column=self.columnspan, row=44, sticky="W"
+        )
 
         # automatically change the x, y range
-        self.bln = BooleanVar()
-        self.bln.set(False)
-        Checkbutton(self.mainframe, variable=self.bln).grid(column=self.columnspan, row=43, sticky="W")
-        ttk.Label(self.mainframe, text="automatically change xy range").grid(column=self.columnspan + 1, row=43, sticky="E")
+        # self.bln = BooleanVar()
+        # self.bln.set(False)
+        # Checkbutton(self.mainframe, variable=self.bln).grid(
+        #     column=self.columnspan, row=43, sticky="W"
+        # )
+        # ttk.Label(self.mainframe, text="automatically change xy range").grid(
+        #     column=self.columnspan + 1, row=43, sticky="E"
+        # )
 
         # clear
-        ttk.Button(self.mainframe, text="clear", command=self.clear).grid(column=self.columnspan - 1, row=44, sticky="W")
+        ttk.Button(self.mainframe, text="clear", command=self.clear).grid(
+            column=self.columnspan - 1, row=44, sticky="W"
+        )
 
         # undo
-        ttk.Button(self.mainframe, text="undo", command=self.undo).grid(column=self.columnspan - 5, row=44, sticky="W")
+        ttk.Button(self.mainframe, text="undo", command=self.undo).grid(
+            column=self.columnspan - 5, row=44, sticky="W"
+        )
 
         # add
         ttk.Label(self.mainframe, text="x y yaw:").grid(column=0, row=45, sticky="E")
         self.x = StringVar()
         self.x.set("x")
-        x_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x).grid(column=1, row=45, sticky="W")
+        x_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.x).grid(
+            column=1, row=45, sticky="W"
+        )
         self.y = StringVar()
         self.y.set("y")
-        y_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y).grid(column=2, row=45, sticky="W")
+        y_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.y).grid(
+            column=2, row=45, sticky="W"
+        )
         self._yaw = StringVar()
         self._yaw.set("yaw")
-        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._yaw).grid(column=3, row=45, sticky="W")
-        ttk.Button(self.mainframe, text="add waypoint", command=self.add_waypoint).grid(column=4, row=45, sticky="W")
+        yaw_entry = ttk.Entry(self.mainframe, width=5, textvariable=self._yaw).grid(
+            column=3, row=45, sticky="W"
+        )
+        ttk.Button(self.mainframe, text="add waypoint", command=self.add_waypoint).grid(
+            column=4, row=45, sticky="W"
+        )
 
         # グラフの準備
         self.fig, self.ax = plt.subplots(figsize=(8, 8))
@@ -161,7 +224,9 @@ class MissionGenerator:
                     return
             except IndexError:
                 pass
-            self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
+            self._datalist = np.append(
+                self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0
+            )
             self.ax.plot(self._datalist[:, 1], self._datalist[:, 0], ".", color="red")
             self.draw_arrows(self._datalist.shape[0] - 1)
         elif button == 3:  # Right click: remove waypoint
@@ -265,7 +330,11 @@ class MissionGenerator:
                         diffs = data[i, :] - data[i - 1, :]
                         yaw = data[i, 2]
                         y, x, _, _, _, _ = diffs + self._datalist[-1, :]
-                        self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
+                        self._datalist = np.append(
+                            self._datalist,
+                            np.array([[y, x, yaw, margin, duration, timeout]]),
+                            axis=0,
+                        )
                 self.redraw()
                 messagebox.showinfo("Repeat info", "Done!")
             else:
@@ -291,7 +360,9 @@ class MissionGenerator:
                 float(self.duration.get()),
                 float(self.timeout.get()),
             )
-            self._datalist = np.append(self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0)
+            self._datalist = np.append(
+                self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0
+            )
             self.redraw()
         except ValueError:
             pass
@@ -301,13 +372,59 @@ class MissionGenerator:
         if not self._datalist.shape[0]:
             messagebox.showerror("Error!", "No waypoints are selected")
             return
+        dir = os.path.abspath(__file__)
+        filename = filedialog.asksaveasfilename(
+            filetypes=[("json", ".json")], initialdir=dir, initialfile="mission.json"
+        )
+        if filename == ():
+            return
+
         for i, xyymdt in enumerate(self._datalist):
             x, y, yaw, margin, duration, timeout = xyymdt
-            d = {"ID": i, "X": x, "Y": y, "Yaw": yaw, "Margin": margin, "Duration": duration, "Timeout": timeout}
+            d = {
+                "ID": i,
+                "X": x,
+                "Y": y,
+                "Yaw": yaw,
+                "Margin": margin,
+                "Duration": duration,
+                "Timeout": timeout,
+            }
             data["waypoints"].append(d)
-        with open("./mission.json", mode="wt", encoding="utf-8") as file:
+
+        with open(filename, mode="wt", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
         messagebox.showinfo("Save info", "Done!")
+
+    def from_json(self, *args):
+        dir = os.path.abspath(os.path.dirname(__file__))
+        filename = filedialog.askopenfilename(
+            filetypes=[("json", ".json")], initialdir=dir
+        )
+        if filename == "":
+            return
+        self._datalist = np.empty((0, 6), int)
+        with open(filename, mode="r") as f:
+            data = json.load(f)
+        wpl = data["waypoints"]
+        x_min = 10 ** 9
+        x_max = -(10 ** 9)
+        y_min = 10 ** 9
+        y_max = -(10 ** 9)
+        for wp in wpl:
+            _, x, y, yaw, margin, duration, timeout = wp.values()
+            x_min = min(x_min, np.round(y))
+            x_max = max(x_max, np.round(y))
+            y_min = min(y_min, np.round(x))
+            y_max = max(y_max, np.round(x))
+            self._datalist = np.append(
+                self._datalist, np.array([[y, x, yaw, margin, duration, timeout]]), axis=0
+            )
+        self.x_min.set(int(x_min - x_min % 10 - 10))
+        self.x_max.set(int(x_max - x_max % 10 + 10))
+        self.y_min.set(int(y_min - y_min % 10 - 10))
+        self.y_max.set(int(y_max - y_max % 10 + 10))
+        self.redraw()
 
     def wpl_viewer(self, *args):
         newWindow = Toplevel(self.root)
@@ -315,7 +432,9 @@ class MissionGenerator:
         message.pack()
         if self._datalist.size > 0:
             for i, xyy in enumerate(self._datalist):
-                m = "{0}: x:{1} y:{2} yaw:{3} margin:{4} duration:{5} timeout:{6}\n".format(i + 1, *xyy)
+                m = "{0}: x:{1} y:{2} yaw:{3} margin:{4} duration:{5} timeout:{6}\n".format(
+                    i + 1, *xyy
+                )
                 message.insert(float(i + 1), m)
         else:
             message.insert(1.0, "No waypoints")
